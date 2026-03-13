@@ -23,7 +23,7 @@ const generateRefreshToken = (userId) => {
   return jwt.sign({ userId, type: 'refresh' }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
   });
-});
+};
 
 // @route   POST /api/auth/register
 // @desc    Register a new user

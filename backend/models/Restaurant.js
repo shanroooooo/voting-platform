@@ -23,35 +23,22 @@ const restaurantSchema = new mongoose.Schema({
       'sushi', 'barbecue', 'vegetarian', 'vegan', 'desserts'
     ]
   },
-  address: {
-    street: {
+  location: {
+    type: {
       type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    state: {
-      type: String,
-      required: true
-    },
-    zipCode: {
-      type: String,
-      required: true
+      enum: ['Point'],
+      default: 'Point'
     },
     coordinates: {
-      lat: {
-        type: Number,
-        required: true,
-        min: -90,
-        max: 90
-      },
-      lng: {
-        type: Number,
-        required: true,
-        min: -180,
-        max: 180
+      type: [Number],
+      required: true,
+      validate: {
+        validator: function(v) {
+          return v.length === 2 && 
+                 v[0] >= -180 && v[0] <= 180 && // longitude
+                 v[1] >= -90 && v[1] <= 90;     // latitude
+        },
+        message: 'Coordinates must be [longitude, latitude] in valid ranges'
       }
     }
   },
@@ -273,7 +260,7 @@ const restaurantSchema = new mongoose.Schema({
 restaurantSchema.virtual('orders', {
   ref: 'Order',
   localField: '_id',
-  foreignField: 'restaurantId'
+  foreignField: 'restaurant'
 });
 
 // Virtual for restaurant's menu items count
@@ -288,7 +275,7 @@ restaurantSchema.virtual('menuItemCount').get(function() {
 // Virtual for current status (open/closed)
 restaurantSchema.virtual('isOpen').get(function() {
   const now = new Date();
-  const day = now.toLocaleLowerCase().substring(0, 3);
+  const day = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   const currentTime = now.getHours() * 60 + now.getMinutes();
   
   const todayHours = this.operatingHours[day];
@@ -304,9 +291,9 @@ restaurantSchema.virtual('isOpen').get(function() {
 
 // Indexes for performance
 restaurantSchema.index({ name: 'text', 'menu.items.name': 'text' });
-restaurantSchema.index({ 'address.coordinates': '2dsphere' });
+restaurantSchema.index({ location: '2dsphere' });
 restaurantSchema.index({ cuisine: 1 });
-restaurantSchema.index({ rating.average: -1 });
+restaurantSchema.index({ 'rating.average': -1 });
 restaurantSchema.index({ isActive: 1 });
 restaurantSchema.index({ owner: 1 });
 
@@ -357,7 +344,7 @@ restaurantSchema.methods.getPopularItems = function(limit = 5) {
 // Static method to find nearby restaurants
 restaurantSchema.statics.findNearby = function(coordinates, maxDistance = 5) {
   return this.find({
-    'address.coordinates': {
+    location: {
       $near: {
         $geometry: {
           type: 'Point',
@@ -399,13 +386,7 @@ restaurantSchema.statics.getStats = async function() {
         verifiedRestaurants: {
           $sum: { $cond: [{ $eq: ['$isVerified', true] }, 1, 0] }
         },
-        averageRating: { $avg: '$rating.average' },
-        cuisineDistribution: {
-          $push: {
-            cuisine: '$cuisine',
-            count: 1
-          }
-        }
+        averageRating: { $avg: '$rating.average' }
       }
     }
   ]);
@@ -414,8 +395,7 @@ restaurantSchema.statics.getStats = async function() {
     totalRestaurants: 0,
     activeRestaurants: 0,
     verifiedRestaurants: 0,
-    averageRating: 0,
-    cuisineDistribution: []
+    averageRating: 0
   };
 };
 
